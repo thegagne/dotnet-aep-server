@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared cross-backend conformance suite (#06): an abstract test class every IResourceStore
+       backend subclasses, so all backends are proven to behave identically. Not a runnable test
+       project itself (no test SDK / runner) — it's referenced by the per-backend test projects. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Aep.Storage.Abstractions\Aep.Storage.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+{
+  "name": "aep-conformance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AEP OpenAPI conformance linting for dotnet-aep-server (Spectral + aep-openapi-linter).",
+  "scripts": {
+    "lint": "spectral lint --fail-severity=warn --ruleset .spectral.yaml \"${SPEC_FILE:-/tmp/aep-conformance-openapi.json}\""
+  },
+  "devDependencies": {
+    "@aep_dev/aep-openapi-linter": "0.5.3",
+    "@stoplight/spectral-cli": "6.16.0"
+  }
+}

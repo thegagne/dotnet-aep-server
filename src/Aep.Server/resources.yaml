@@ -1,0 +1,92 @@
+# Sample AEP service definition (aepc format).
+# This file is baked into the Docker image; edit and rebuild to change resources.
+name: "bookstore.example.com"
+server_url: "http://localhost:8080"
+contact:
+  name: "API support"
+  email: "support@example.com"
+
+resources:
+  publisher:
+    singular: "publisher"
+    plural: "publishers"
+    description: "A company that publishes books."
+    schema:
+      type: object
+      properties:
+        display_name:
+          type: string
+          description: "The human-readable name of the publisher."
+    methods:
+      create:
+        supports_user_settable_create: true
+      get: {}
+      update: {}
+      delete: {}
+      list:
+        supports_filter: true
+        supports_skip: true
+      apply: {}
+
+  chapter:
+    singular: "chapter"
+    plural: "chapters"
+    parents: ["book"]
+    description: "A chapter within a book (a grandchild of publisher)."
+    schema:
+      type: object
+      required: ["title"]
+      properties:
+        title:
+          type: string
+          description: "The chapter title."
+        number:
+          type: integer
+          description: "The chapter number within the book."
+    methods:
+      create:
+        supports_user_settable_create: true
+      get: {}
+      update: {}
+      delete: {}
+      list:
+        supports_filter: true
+        supports_skip: true
+      apply: {}
+
+  book:
+    singular: "book"
+    plural: "books"
+    parents: ["publisher"]
+    description: "A book published by a publisher."
+    schema:
+      type: object
+      required: ["title"]
+      properties:
+        title:
+          type: string
+          description: "The title of the book."
+        author:
+          type: string
+          description: "The author of the book."
+        price:
+          type: integer
+          description: "Price in cents."
+        published:
+          type: boolean
+          description: "Whether the book has been published."
+        tags:
+          type: array
+          description: "Free-form tags."
+          items:
+            type: string
+    methods:
+      create:
+        supports_user_settable_create: true
+      get: {}
+      update: {}
+      delete: {}
+      list:
+        supports_filter: true
+        supports_skip: true
+      apply: {}

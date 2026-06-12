@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Aep.AspNetCore/Aep.AspNetCore.csproj" />
+    <Project Path="src/Aep.Cli/Aep.Cli.csproj" />
+    <Project Path="src/Aep.Server/Aep.Server.csproj" />
+    <Project Path="src/Aep.Storage.Abstractions/Aep.Storage.Abstractions.csproj" />
+    <Project Path="src/Aep.Storage.DynamoDb/Aep.Storage.DynamoDb.csproj" />
+    <Project Path="src/Aep.Storage.InMemory/Aep.Storage.InMemory.csproj" />
+    <Project Path="src/Aep.Storage.Postgres/Aep.Storage.Postgres.csproj" />
+    <Project Path="src/Aep.Storage.Sqlite/Aep.Storage.Sqlite.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Aep.Storage.TestKit/Aep.Storage.TestKit.csproj" />
+    <Project Path="tests/Aep.Storage.Benchmarks/Aep.Storage.Benchmarks.csproj" />
+    <Project Path="tests/Aep.Server.Tests/Aep.Server.Tests.csproj" />
+    <Project Path="tests/Aep.Storage.DynamoDb.Tests/Aep.Storage.DynamoDb.Tests.csproj" />
+    <Project Path="tests/Aep.Storage.InMemory.Tests/Aep.Storage.InMemory.Tests.csproj" />
+    <Project Path="tests/Aep.Storage.Postgres.Tests/Aep.Storage.Postgres.Tests.csproj" />
+    <Project Path="tests/Aep.Storage.Sqlite.Tests/Aep.Storage.Sqlite.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,39 @@
+<Project>
+
+  <!-- Common settings for every project in the repo. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Nothing is packed unless a project opts in with <IsPackable>true</IsPackable>. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Shared NuGet metadata. Set unconditionally (it's imported before a project sets
+       IsPackable, so it can't be gated on it); non-packable projects simply ignore it. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Authors>undercoverdave</Authors>
+    <Product>AepServer</Product>
+    <PackageTags>aep;rest;api;openapi;crud;aspnetcore</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/thegagne/dotnet-aep-server</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Don't require an XML doc comment on every public member. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- Pack the README into each package (used as the nuget.org landing page). -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false"
+          Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
+  </ItemGroup>
+
+</Project>

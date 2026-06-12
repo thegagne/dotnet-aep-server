@@ -1,0 +1,42 @@
+# Sample service for the AWS serverless example. Baked into the Lambda image.
+name: "bookstore.example.com"
+contact:
+  name: "API support"
+  email: "support@example.com"
+
+resources:
+  publisher:
+    singular: "publisher"
+    plural: "publishers"
+    description: "A company that publishes books."
+    schema:
+      type: object
+      properties:
+        display_name: { type: string }
+    methods:
+      create: { supports_user_settable_create: true }
+      get: {}
+      update: {}
+      delete: {}
+      list: { supports_filter: true }
+      apply: {}
+
+  book:
+    singular: "book"
+    plural: "books"
+    parents: ["publisher"]
+    description: "A book published by a publisher."
+    schema:
+      type: object
+      required: ["title"]
+      properties:
+        title:  { type: string }
+        author: { type: string }
+        price:  { type: integer, format: int32 }
+    methods:
+      create: { supports_user_settable_create: true }
+      get: {}
+      update: {}
+      delete: {}
+      list: { supports_filter: true }
+      apply: {}

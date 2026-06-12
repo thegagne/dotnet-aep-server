@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Runnable reference host / sample. Not published as a package. -->
+    <!-- Storage backends are opt-in at build time. SQLite is included by default;
+         build with -p:IncludeSqlite=false to drop it (and its native SQLite binding)
+         entirely, leaving the zero-dependency in-memory provider. -->
+    <IncludeSqlite Condition="'$(IncludeSqlite)' == ''">true</IncludeSqlite>
+    <!-- Postgres/DynamoDB are off by default (they pull Npgsql / the AWS SDK).
+         Enable with -p:IncludePostgres=true / -p:IncludeDynamoDb=true. -->
+    <IncludePostgres Condition="'$(IncludePostgres)' == ''">false</IncludePostgres>
+    <IncludeDynamoDb Condition="'$(IncludeDynamoDb)' == ''">false</IncludeDynamoDb>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Always available: the embeddable server library + the in-memory provider. -->
+    <ProjectReference Include="..\Aep.AspNetCore\Aep.AspNetCore.csproj" />
+    <ProjectReference Include="..\Aep.Storage.InMemory\Aep.Storage.InMemory.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IncludeSqlite)' == 'true'">
+    <ProjectReference Include="..\Aep.Storage.Sqlite\Aep.Storage.Sqlite.csproj" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(IncludeSqlite)' == 'true'">
+    <DefineConstants>$(DefineConstants);STORAGE_SQLITE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IncludePostgres)' == 'true'">
+    <ProjectReference Include="..\Aep.Storage.Postgres\Aep.Storage.Postgres.csproj" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(IncludePostgres)' == 'true'">
+    <DefineConstants>$(DefineConstants);STORAGE_POSTGRES</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IncludeDynamoDb)' == 'true'">
+    <ProjectReference Include="..\Aep.Storage.DynamoDb\Aep.Storage.DynamoDb.csproj" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(IncludeDynamoDb)' == 'true'">
+    <DefineConstants>$(DefineConstants);STORAGE_DYNAMODB</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="resources.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

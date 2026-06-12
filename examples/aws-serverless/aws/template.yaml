@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AEP server on AWS: the DynamoDB-only Lambda container image (with the Lambda Web Adapter)
+  behind an API Gateway HTTP API, backed by DynamoDB. Build + deploy with SAM:
+
+    cd examples/aws-serverless/aws
+    sam build
+    sam deploy --guided          # creates the ECR repo, pushes the image, deploys the stack
+
+Resources:
+  AepFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      # SAM builds this image and pushes it to ECR on `sam deploy`.
+      Dockerfile: examples/aws-serverless/Dockerfile
+      DockerContext: ../../..
+      DockerTag: latest
+    Properties:
+      PackageType: Image
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          Storage__Provider: dynamodb
+          # Credentials come from this function's execution role — no static keys.
+          Storage__DynamoDb__CredentialsSource: Ambient
+          Storage__DynamoDb__TablePrefix: aep_
+          Storage__DynamoDb__Region: !Ref AWS::Region
+      Policies:
+        # The app creates its tables on first run (EnsureSchema) and reads/writes them.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:CreateTable
+                - dynamodb:DescribeTable
+                - dynamodb:UpdateTable
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource:
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/aep_*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/aep_*/index/*
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the AEP API.
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com

@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aep.Storage.Abstractions\Aep.Storage.Abstractions.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>AepServer.Storage.InMemory</PackageId>
+    <Description>Zero-dependency in-memory storage backend for AepServer (tests, dev, ephemeral runs).</Description>
+  </PropertyGroup>
+
+</Project>

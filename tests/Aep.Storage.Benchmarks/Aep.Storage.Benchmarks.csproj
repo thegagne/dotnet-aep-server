@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Storage performance benchmarks (#06): a BenchmarkDotNet console app, not a test project.
+       See tests/Aep.Storage.Benchmarks/README.md for how to run. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Aep.Storage.Abstractions\Aep.Storage.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Aep.Storage.InMemory\Aep.Storage.InMemory.csproj" />
+    <ProjectReference Include="..\..\src\Aep.Storage.Sqlite\Aep.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Aep.AspNetCore\Aep.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

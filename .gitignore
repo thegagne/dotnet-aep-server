@@ -1,0 +1,16 @@
+bin/
+obj/
+*.user
+*.db
+*.db-wal
+*.db-shm
+.vs/
+[Tt]est[Rr]esults/
+node_modules/
+
+# BenchmarkDotNet run output.
+BenchmarkDotNet.Artifacts/
+
+# Local tooling / agent config (not part of the project).
+.claude/
+.agents/

@@ -1,0 +1,27 @@
+# Local dev loop: FLOCI (a local AWS emulator) for DynamoDB + the AEP Lambda image run as a
+# plain HTTP container against it. The Lambda Web Adapter is inert outside the Lambda runtime,
+# so this is just the ASP.NET app on :8080, backed by FLOCI's DynamoDB.
+#
+#   docker compose -f examples/aws-serverless/docker-compose.yml up --build
+#   curl localhost:8080/openapi.json
+services:
+  floci:
+    image: hectorvent/floci:latest
+    ports:
+      - "4566:4566"
+
+  aep:
+    build:
+      context: ../..
+      dockerfile: examples/aws-serverless/Dockerfile
+    depends_on:
+      - floci
+    ports:
+      - "8080:8080"
+    environment:
+      Storage__Provider: dynamodb
+      Storage__DynamoDb__ServiceUrl: http://floci:4566
+      Storage__DynamoDb__CredentialsSource: Static
+      Storage__DynamoDb__AccessKey: local
+      Storage__DynamoDb__SecretKey: local
+      Storage__DynamoDb__TablePrefix: aep_

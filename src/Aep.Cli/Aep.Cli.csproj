@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>aep</ToolCommandName>
+    <PackageId>AepServer.Cli</PackageId>
+    <Description>CLI for AepServer: run an AEP-compliant REST API straight from a resources.yaml. Install with 'dotnet tool install -g AepServer.Cli'.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The CLI bundles every backend so any "storage" value always works. -->
+    <ProjectReference Include="..\Aep.AspNetCore\Aep.AspNetCore.csproj" />
+    <ProjectReference Include="..\Aep.Storage.InMemory\Aep.Storage.InMemory.csproj" />
+    <ProjectReference Include="..\Aep.Storage.Sqlite\Aep.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\Aep.Storage.Postgres\Aep.Storage.Postgres.csproj" />
+    <ProjectReference Include="..\Aep.Storage.DynamoDb\Aep.Storage.DynamoDb.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,44 @@
+name: conformance
+
+# AEP conformance: lint the generated OpenAPI spec (Spectral + aep-openapi-linter)
+# and drive the running server with aepcli end-to-end. See tests/conformance/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tests/conformance/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install aepcli (>= v0.3.0)
+        run: |
+          go install github.com/aep-dev/aepcli/cmd/aepcli@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install linter deps
+        working-directory: tests/conformance
+        run: npm ci
+
+      - name: Run conformance suite
+        run: tests/conformance/run.sh

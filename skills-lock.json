@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "aep": {
+      "source": "way-platform/skills",
+      "sourceType": "github",
+      "skillPath": "aep/SKILL.md",
+      "computedHash": "881d511d9c3ad9a1d99c086e8cff021e1366e6102bd94046b182f79546287faa"
+    }
+  }
+}

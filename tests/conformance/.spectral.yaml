@@ -1,0 +1,7 @@
+# Spectral ruleset for the AEP OpenAPI conformance check.
+# Extends the official aep-dev ruleset; pinned via package.json (@aep_dev/aep-openapi-linter).
+#
+# The check runs at --fail-severity=warn, so any rule left on gates the build. There are
+# currently NO rule overrides — the generated spec passes the full AEP ruleset clean.
+extends:
+  - '@aep_dev/aep-openapi-linter'
