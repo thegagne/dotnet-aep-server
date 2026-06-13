@@ -15,7 +15,7 @@
        IsPackable, so it can't be gated on it); non-packable projects simply ignore it. -->
   <PropertyGroup>
     <Version>0.1.0</Version>
-    <Authors>undercoverdave</Authors>
+    <Authors>thegagne</Authors>
     <Product>AepServer</Product>
     <PackageTags>aep;rest;api;openapi;crud;aspnetcore</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
