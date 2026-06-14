@@ -1,120 +1,158 @@
 # 05 — Long-running operations (AEP-151)
 
-**Theme:** API surface · **Status:** ⏸️ deferred (design locked) — build behind [#09](09-aws-serverless-example.md)
+**Theme:** API surface · **Status:** ⏸️ deferred (spec locked) — build behind [#09](09-aws-serverless-example.md)
 
 ## Summary
 
-Support the AEP-151 long-running operation (LRO) pattern: a method that can't finish
-synchronously returns an `Operation` resource (the durable promise) that the client polls until
-`done`, at which point it carries a `response` or an `error`.
+Let a standard method (`Create`/`Update`/`Delete`, or a custom method) run asynchronously: instead
+of blocking, it returns **`202` + an `Operation`** (a durable promise) that the client polls until
+`done`, at which point the operation carries the `response` (the resource) or an `error`. This issue
+is the **full design**; the build is deferred until there's a concrete async use case and a real
+Lambda deploy ([#09](09-aws-serverless-example.md)) to validate the execution/completion path.
 
-## Decision: defer the build, lock the design
+## What AEP gives us
 
-LRO is **parked, not cancelled.** The design below is settled; the implementation waits until
-there's (a) a concrete async use case and (b) a real Lambda deploy ([#09](09-aws-serverless-example.md))
-to validate the completion ingress against. Rationale:
+- **`Operation` shape (don't invent it):** `path`, `done` (bool), `metadata` (free object),
+  and a oneof **`error`** (AEP-193) **or `response`** (the result). Per the JSON-Schema `operation.json`.
+- **`/operations` is required:** a service with any LRO **must** expose an `Operation` resource with
+  **List + Get** (Get is the poll endpoint).
+- **The Operations service is read/control only** — `Get`/`List` (+ optional `Cancel`/`Delete`/`Wait`).
+  No public create/update: operations are minted by the method and completed by the server.
+- **Standard methods may be LRO** (Create/Update/Delete); `response` **must** be the resource (or an
+  empty object for Delete). Reads (Get/List) are **never** LRO.
+- **In-flight visibility:** a resource being created/deleted **should** appear in Get/List, marked
+  not-usable via a state enum (AEP-216).
+- **OpenAPI:** the official **`x-aep-long-running-operation`** extension
+  ([aep-components](https://github.com/aep-dev/aep-components) PR #27) names `response_type` and
+  `metadata_type` on the operation; success status is **`202`**, body `$ref` → `operation.json`.
+- Mandated edges: errors-to-*start* → normal HTTP error; errors-*during* → `operation.error`;
+  parallel on a busy resource → `409 ALREADY_EXISTS` (or queue); operations **may** expire (~30 days).
 
-- The **synchronous** custom-logic story is already solved — an `OnCreate`/`OnUpdate` interceptor
-  (or the backend decorator) can call an external service and block today. LRO adds nothing there.
-- The genuinely hard/variable part of async (executing the work, the event bus, retries) is
-  **out of scope by design** — it lives in the integrator's infrastructure, not this service.
-- So what LRO adds *here* is narrow but real: a standardized `Operation` resource + poll endpoint
-  + the service owning operation state. Worth building, but only against a real workload + #09 —
-  building the completion ingress (HTTP hook vs. event consumer) and its auth in the abstract
-  risks the wrong shape.
+## Locked decisions
 
-## What AEP-151 actually fixes (verified against the spec + `aep.api.Operation`)
+1. **`/operations` is a flat, built-in, store-backed resource.** It reuses the existing
+   `IResourceStore` (its fields — `done`, `metadata`, `error`, `response` — are JSON-capable), so we
+   get Get/List, pagination, **filtering**, all four backends, and TTL/expiry for free. Public
+   surface: **Get + List** (+ optional `:cancel` / `Delete`). **No public create/update** — created
+   by the LRO trigger, completed by the internal writer.
+2. **Async is per-method** (`is_long_running` on a method in `resources.yaml`). A resource can have
+   async Create but sync Update, etc.
+3. **Operation metadata carries our expansion fields** (`metadata` is the extensible bag):
+   `target` (the resource path — the back-link), `method`, `client_id`, `state`, `progress`,
+   `create_time`. The `Operation` top-level schema stays exactly AEP's.
+4. **Resource → operation is a query, not a field.** The resource carries only **`state`**
+   (AEP-216, shared with soft-delete [#26](26-soft-delete-and-undelete.md)); there is **no**
+   `operation_path` field. Find the in-flight op with
+   `GET /operations?filter=target == "<path>" && done == false`.
+5. **Placeholder-on-create.** An async Create writes the resource immediately in `state: CREATING`
+   (visible in Get/List, marked not-usable), flips to `ACTIVE` on success, and is removed on failure.
+   This keeps `state` uniform across create/update/delete and makes the placeholder row the pending
+   payload. (State enum: `ACTIVE` / `CREATING` / `UPDATING` / `DELETING`.)
+6. **Status code `202`** for the success response of an async method (per AEP's normative text).
+   *Note:* the `x-aep-long-running-operation` example and `aep-lib-go` use `200`; we lead with `202`
+   and **verify against the conformance linter** at build time, switching if it requires `200`.
+7. **The service owns the write.** Operation state changes only through an internal `IOperations`
+   sink (enforces the state machine, reuses etag concurrency [#12](12-etag-preconditions.md)) — never
+   a public endpoint, so a client can't forge "my operation succeeded."
 
-- **The `Operation` shape is standard, don't invent it:** `path` (its own resource name, required),
-  `done` (bool, required), `metadata` (free object — progress/state live here; there is **no**
-  standard progress field), and a oneof **`error`** (AEP-193 status) **or `response`** (the result).
-- **The `Operations` service is read/control only:** `GetOperation`, `ListOperations`,
-  `WaitOperation`, `CancelOperation`, `DeleteOperation`. There is **no Create and no Update/Apply** —
-  operations are not client-created (an LRO method mints one as a side effect) and not
-  client-updated (state is server-authoritative).
-- **The poll endpoint is mandatory:** `GET /operations/{operation}` — the path, no other params.
-- **Standard methods may themselves be long-running:** Create/Update/Delete MAY return an
-  `Operation`; then `response` MUST be the normal resource. *So we don't need custom methods to
-  support or demo LRO* — flip a flag on a standard method.
-- **The spec is deliberately silent on how state is written.** There is no `UpdateOperation` RPC,
-  no callback API. The standard defines the read contract + data shape and leaves the *writer*
-  undefined — which is exactly the seam we design below.
-- Mandated edges: parallel request on a busy resource → queue it or return `409 ALREADY_EXISTS`;
-  failure *to start* → normal AEP-193 error; failure *during* → the operation's `error`. "Long" ≈
-  10s rule of thumb; operations MAY expire (~30 days). If Create/Delete are LRO, the resource
-  SHOULD still appear in Get/List meanwhile, marked unusable via a state enum (AEP-216).
+## How CRUDL behaves when a method is async
 
-## Locked design
+Example: `book` has async **Create/Update/Delete**; **Get/List** sync.
 
-### Principle: the service owns the operations store; it is the sole writer
-
-Nothing reaches around the service to mutate its tables. Owning the write buys: an enforceable
-state machine (`running → done`, no un-completing, cancelled-op rules), reuse of our
-etag/optimistic-concurrency (#12) so completers can't race, AEP-151 expiry, and zero schema
-coupling with workers (swap DynamoDB↔Postgres and workers don't care).
-
-### One internal write API, fed by pluggable ingress
-
+### Create (async)
 ```
-IOperations.StartAsync(metadata) -> Operation      // interceptor mints it (done:false)
-IOperations.CompleteAsync(id, response | error)    // the only way to finish; enforces transitions
-IOperations.UpdateMetadataAsync(id, progress)      // optional progress, written to metadata
+POST /publishers/acme/books?id=1984   {"title":"1984","author":"Orwell"}
 ```
+1. **Sync gate** — validation / duplicate id → `400`/`409` *now* (start-failure, no operation).
+2. Mint an operation; write a **placeholder book `CREATING`**; kick off the async work.
+3. `202` + Operation `{path:"operations/op_x", done:false, metadata:{state:CREATING, progress:0, target:"publishers/acme/books/1984", method:"create"}}`.
+4. **Complete** (internal writer): success → `done:true`, `response` = the book (`ACTIVE`), placeholder flips to `ACTIVE`; failure → `done:true`, `error`, placeholder removed.
 
-All writes go through `IOperations` against the operations store. **How completion reaches it** is
-pluggable — both adapters call the same `CompleteAsync`:
+### Get (sync, state-aware)
+`GET …/books/1984` during the op → `200` with the placeholder (`state:CREATING`); after success →
+the book (`state:ACTIVE`); after a create-failure → `404`. Get never returns an Operation.
 
-- **HTTP completion hook** (built-in): an authenticated, internal `POST /internal/operations/{id}:complete`
-  taking `{response}` or `{error}`. Any worker that speaks HTTP (Lambda/ECS/external) reports its
-  result; *we* write the store. Universal default.
-- **Eventing** (integrator-wired): a consumer bound to the integrator's bus (SQS/EventBridge/Kafka)
-  that receives completion events and calls `CompleteAsync`. A background `IHostedService` in a
-  long-lived host, or the function-invoked-by-event in Lambda. We provide the sink; the bus binding
-  is theirs (same way we don't embed their event system today).
+### List (sync, includes in-flight)
+`GET …/books` includes in-flight resources marked with `state`; a client filters
+`?filter=state == "ACTIVE"` to exclude them. Operations are their own collection:
+`GET /operations?filter=target == "…/books/1984"`.
 
-### This is NOT a public "PUT /operations"
+### Update (async)
+`PATCH …/books/1984` — sync gate (`404`/`400`/`412`); mint op; mark the existing book `UPDATING`;
+`202` + Operation. Complete → success: `response` = updated book (`ACTIVE`, new values); failure:
+`error`, book reverts to `ACTIVE` (old values).
 
-The public AEP surface stays **read/control only** (`Get/List/Cancel/Wait`). The completion hook is
-a *separate control-plane RPC* — not a resource verb, not in `/openapi.json`'s AEP surface,
-authenticated to trusted workers only, idempotent, and it enforces the state machine rather than
-blind-overwriting. Client `Cancel` is the AEP control method that writes a "cancel-requested" flag
-to our store; the worker observes it and completes with a cancelled terminal state (still our write).
+### Delete (async)
+`DELETE …/books/1984` — sync gate (`404`/`412`); mint op (`response_type` = empty); mark book
+`DELETING`; `202` + Operation. Complete → success: empty `response`, book removed (`GET` → `404`);
+failure: `error`, book reverts to `ACTIVE`.
 
-### OpenAPI (mechanical — mirror aep-lib-go)
+### The `/operations` resource
+| | |
+|---|---|
+| `GET /operations/{op}` | poll one (AEP-required) |
+| `GET /operations?filter=…` | list (AEP-required) — filter by `target`/`done`/`method`/`client_id` |
+| `POST /operations/{op}:cancel` | *optional* — sets `metadata.state:CANCELLING`; worker stops, completes cancelled |
+| `DELETE /operations/{op}` | *optional* — or TTL expiry (~30 days) |
+| ~~create / update~~ | never public — trigger creates, internal writer completes |
 
-A per-method `is_long_running` flag in `resources.yaml` → `ResourceMethods`. When set, the generator
-(matching `aep-lib-go/pkg/api/openapi.go`):
-- sets the success response to an external `$ref` → `https://aep.dev/json-schema/type/operation.json`, and
-- adds the `x-aep-long-running-operation` extension naming the eventual `response` type (the resource).
+## Execution & completion (the part deferred to the build)
 
-(Note: aep-lib-go does **not** emit the `/operations/{id}` path itself — it's a well-known endpoint;
-we implement it but don't have to model it.)
+The standard defines the read/poll contract and is **silent on who writes state** — that's our seam,
+and the reason to build behind [#09](09-aws-serverless-example.md):
+
+- `IOperations.StartAsync(...)` (mint, `done:false`), `CompleteAsync(id, response|error)` (the only
+  way to finish; enforces transitions), `UpdateMetadataAsync(id, progress)`.
+- Fed by **pluggable ingress**, all calling the same sink: an **in-process executor** (hosted
+  service), an **authenticated internal HTTP completion hook**, or an **event consumer** (the
+  serverless path — the worker is a Lambda; completion is an event). The service owns the store; the
+  integrator owns the bus/worker.
+- **Cancellation/progress** reach the executor via the same seam (it observes `state:CANCELLING` /
+  reports progress through the ingress).
+
+## Cross-cutting
+
+- **Always an Operation, even if fast** — an async method always returns the envelope; if it
+  finished instantly the `202` already has `done:true`. Clients check `done` on the first response.
+- **Parallel → `409 ALREADY_EXISTS`** by default (detected via the op's `target`); opt into queueing.
+- **Idempotent trigger** — a retried trigger with the same key returns the same operation ([#30](30-idempotency-keys.md)).
+- **Auth** — the target resource's **read scope** governs reading its operations ([#16](16-oauth-client-credentials-validator.md)).
+- **Expiry** — operations purge after a retention window (DynamoDB TTL; SQL sweep), default ~30 days.
+
+## Open / deferred
+
+- `Cancel` and `Wait` (long-poll) are optional — defer to a v2.
+- `200` vs `202` — lead with `202`, verify against the conformance linter at build ([#07](07-aeplinter-aepcli-conformance.md)).
+- The execution ingress (hook vs event) and its auth — designed against a real workload + [#09](09-aws-serverless-example.md).
 
 ## Suggested increments (when unparked)
 
-1. **Readable surface:** `Operation` model + operations store + `GET /operations/{id}` (+List/Cancel/Wait)
-   + the OpenAPI `is_long_running` flag. Demoable via a long-running standard Create returning the
-   resource in `response`. Self-contained and useful alone.
-2. **Write seam:** `IOperations` (start/complete/update with state-machine enforcement) + the
-   authenticated HTTP completion hook; an interceptor can start an operation instead of returning a
-   resource.
-3. **Eventing ingress + serverless validation:** the event-consumer seam, proven against #09's real
-   Lambda deploy (this is the part not to design in the abstract).
+1. **Read surface:** `Operation` as a built-in store-backed resource + `GET /operations/{id}` + List
+   + the `is_long_running` OpenAPI flag (`202` + `x-aep-long-running-operation`). Demoable via an
+   async standard Create returning the resource in `response`.
+2. **Lifecycle:** `state` field (AEP-216) + placeholder-on-create + mark-on-update/delete; the
+   internal `IOperations` sink + state machine; an interceptor can start an operation.
+3. **Execution ingress + serverless validation:** the event-consumer / completion-hook seam, proven
+   against [#09](09-aws-serverless-example.md).
 
 ## Acceptance criteria
 
-- [ ] An `Operation` resource matching `aep.api.Operation` is defined and persisted.
-- [ ] An interceptor can start an in-progress operation; polling reflects done + response/error.
-- [ ] Operation state is written only via `IOperations` (state machine enforced); survives restart / multi-instance.
-- [ ] Completion ingress: built-in authenticated HTTP hook works; event-consumer seam documented.
-- [ ] Public surface is read/control only; OpenAPI marks LRO methods and exposes nothing client-writable.
+- [ ] `/operations` exposes Get + List (built-in, store-backed, filterable); no public create/update.
+- [ ] A method marked `is_long_running` returns `202` + an `Operation`; `response` = the resource (empty for Delete).
+- [ ] Async Create writes a `CREATING` placeholder visible in Get/List; flips `ACTIVE` / is removed on completion.
+- [ ] Async Update/Delete mark the resource `UPDATING`/`DELETING`; revert on failure.
+- [ ] Operation state changes only via the internal writer (state machine enforced); survives restart / multi-instance.
+- [ ] Parallel mutation on a busy resource → `409`; errors-to-start → HTTP error; errors-during → `operation.error`.
+- [ ] OpenAPI advertises `x-aep-long-running-operation` (`response_type`/`metadata_type`); conformance stays green.
 
 ## References
 
-- AEP-151 (long-running operations); `aep.api.Operation` (path/done/metadata/error|response);
-  `Operations` service = Get/List/Wait/Cancel/Delete (no create/update)
-- `aep-lib-go/pkg/api/openapi.go` (`IsLongRunning`, `x-aep-long-running-operation`, `AEP_OPERATION_REF`)
-- `src/Aep.AspNetCore/Backend/`, `src/Aep.AspNetCore/Controllers/ResourceController.cs`,
-  `src/Aep.AspNetCore/OpenApi/OpenApiGenerator.cs`
-- Reuse: [#12](12-etag-preconditions.md) (concurrency on operation writes)
-- Blocked on / validate with: [#09 — AWS serverless example](09-aws-serverless-example.md)
+- AEP-151 (LRO); `operation.json` / `aep.api.Operation`; `x-aep-long-running-operation` extension
+  ([aep-components](https://github.com/aep-dev/aep-components) PR #27, [aeps #293](https://github.com/aep-dev/aeps/issues/293));
+  AEP-216 (state)
+- `aep-lib-go/pkg/api/openapi.go` (`IsLongRunning`, the extension)
+- `src/Aep.AspNetCore/{Controllers/ResourceController.cs,Backend/,OpenApi/OpenApiGenerator.cs}`,
+  `src/Aep.Storage.Abstractions/Storage/IResourceStore.cs`
+- Relates to: [#09](09-aws-serverless-example.md) (execution ingress), [#12](12-etag-preconditions.md)
+  (concurrency), [#16](16-oauth-client-credentials-validator.md) (auth), [#26](26-soft-delete-and-undelete.md)
+  (`state`), [#28](28-custom-methods.md) (custom-method LROs), [#30](30-idempotency-keys.md) (idempotent trigger)
